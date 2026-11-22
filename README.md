@@ -43,9 +43,8 @@ construction and practical communication.
    npm run dev
    ```
 7. **Open it in your browser** — go to <http://localhost:5173>.
-   The app opens on the sign-in screen. Click **Sign in with Google**
-   under **Testing Project** to enter (see "Google sign-in" below).
-   To stop the app, press `Ctrl+C` in the terminal.
+   The app opens directly on Home — there is no sign-in screen and
+   no account is needed. To stop the app, press `Ctrl+C` in the terminal.
 
 Other useful commands:
 
@@ -61,15 +60,6 @@ minutes, settings) is saved **in your browser** on your own computer
 (localStorage, key `els-standalone-v1`). It is not sent anywhere.
 Clearing the browser's site data, or switching to a different browser,
 starts you fresh. The Settings page also has a "Reset progress" button.
-
-## Google sign-in
-
-The sign-in screen is the same as in the Muse-hosted version. Real
-Google sign-in needs a Google OAuth Client ID, which is not included
-here — put yours in `src/google-config.ts` (`GOOGLE_CLIENT_ID`) if you
-have one. Without it, use the **Testing Project** entry on the
-sign-in screen: it opens the app directly with no account, no name
-and no photo.
 
 ## What is different from the Muse-hosted version
 
