@@ -1,0 +1,507 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap');
+@import "./assets/flaticon/uicons.css";
+@import "tailwindcss";
+@import "tailwindcss-safe-area";
+
+@theme {
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-base: 16px;
+  --text-base--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 28px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 36px;
+}
+
+/* FocusPup-style world: a bright sunny-yellow backdrop in light mode with
+   white "sheet" cards floating on it; in dark mode the same layout turns
+   deep warm charcoal-brown and the yellow survives as the accent. */
+:root {
+  color-scheme: light dark;
+  --bg: #ffc81a;
+  --hero: #ffc81a;
+  --sheet: #ffffff;
+  --surface: #ffffff;
+  --surface2: #fff0b3;
+  --text: #221a05;
+  --dim: #65582e;
+  --border: #f0df9a;
+  --accent: #221a05;
+  --on-accent: #ffffff;
+  --accent-soft: #ffe98a;
+  --chip: rgba(255, 255, 255, 0.55);
+  --amber: #e8930c;
+  --rose: #d63a2a;
+  /* Comparison palette tokens (light values; dark counterparts below). */
+  --bg-hero: #F6D000;
+  --bg-surface: #FFFDF7;
+  --bg-pill-inactive: #FEF08A;
+  --bg-pill-active: #1E1910;
+  --text-pill-active: #FFFFFF;
+  --text-primary: #1E1910;
+  --text-secondary: #5C5346;
+  --border-subtle: #E5C100;
+  /* Universal button hover (light): an inset warm tint that deepens any
+     button's own background colour, plus a soft lift shadow. */
+  --btn-hover-shadow: inset 0 0 0 999px rgba(34, 26, 5, 0.07), 0 8px 18px rgba(34, 26, 5, 0.2);
+  --radius: 20px;
+  --space-surface: var(--surface);
+  --space-surface-alt: var(--surface2);
+  --space-muted: var(--dim);
+  --space-border: var(--border);
+  --space-accent: var(--accent);
+  font-family: "Nunito", "Noto Sans Bengali", system-ui, sans-serif;
+}
+
+/* Dark tokens apply either when the learner explicitly chose Dark
+   (data-theme="dark" on <html>) or, with no explicit choice, when the
+   device prefers dark. Choosing Light always wins over the media query. */
+/* Dark palette: a soft warm charcoal (less black, less yellow-brown than
+   before) with gently lifted surfaces and warm off-white text — easier on
+   the eyes for long evening study. Light-mode tokens above are untouched. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #23201b;
+  --hero: #ffc81a;
+  --sheet: #2c2822;
+  --surface: #363129;
+  --surface2: #494238;
+  --text: #f7f1e3;
+  --dim: #cfc4ab;
+  --border: #57503f;
+  --accent: #ffc81a;
+  --on-accent: #221a05;
+  --accent-soft: #57503a;
+  --chip: rgba(255, 255, 255, 0.09);
+  --amber: #f5a623;
+  --rose: #fb7185;
+  /* Comparison palette tokens (dark values). */
+  --bg-hero: #14120E;
+  --bg-surface: #1E1B15;
+  --bg-pill-inactive: #28231B;
+  --bg-pill-active: #FACC15;
+  --text-pill-active: #14120E;
+  --text-primary: #F7F4EB;
+  --text-secondary: #A8A092;
+  --border-subtle: #322C22;
+  /* Universal button hover (dark): a deeper inset shade so both the dark
+     surfaces and the yellow accent buttons visibly deepen, plus a soft
+     black lift shadow that reads on the charcoal backdrop. */
+  --btn-hover-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.16), 0 8px 18px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #23201b;
+    --hero: #ffc81a;
+    --sheet: #2c2822;
+    --surface: #363129;
+    --surface2: #494238;
+    --text: #f7f1e3;
+    --dim: #cfc4ab;
+    --border: #57503f;
+    --accent: #ffc81a;
+    --on-accent: #221a05;
+    --accent-soft: #57503a;
+    --chip: rgba(255, 255, 255, 0.09);
+    --amber: #f5a623;
+    --rose: #fb7185;
+    /* Comparison palette tokens (dark values). */
+    --bg-hero: #14120E;
+    --bg-surface: #1E1B15;
+    --bg-pill-inactive: #28231B;
+    --bg-pill-active: #FACC15;
+    --text-pill-active: #14120E;
+    --text-primary: #F7F4EB;
+    --text-secondary: #A8A092;
+    --border-subtle: #322C22;
+    --btn-hover-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.16), 0 8px 18px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* The outline follows each element's own border radius (pills stay
+   pills); never force a small fixed radius here, or a focused pill
+   field would get a squarish outline with gaps at its corners. */
+:focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 2px;
+}
+
+.bn { font-family: "Noto Sans Bengali", "Nunito", system-ui, sans-serif; }
+
+/* Responsive guards for every screen size: stop the browser inflating
+   text after an orientation change, never let one stray wide element
+   make the whole page scroll sideways on a small phone (overflow: clip
+   does not create a scroll container, so sticky headers keep working),
+   and keep media inside its box from foldables to wide monitors. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* Scroll anchoring off: this app swaps whole views in place, and Chrome's
+   anchoring otherwise "restores" a scrolled position on the fresh view,
+   opening lists (e.g. an Oxford 3000 level) at the end of an entry
+   instead of its beginning. */
+html, body { overflow-anchor: none; }
+body { overflow-x: clip; }
+img, svg, video, canvas { max-width: 100%; }
+
+/* Scrollable strips (e.g. the lesson-section tabs) move with their
+   Backward/Forward arrow buttons — no visible scrollbar underneath. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.font-display { font-family: "Fredoka", "Nunito", "Noto Sans Bengali", system-ui, sans-serif; }
+
+@layer base {
+  button, [role="button"], select, summary, input:not([type="checkbox"], [type="radio"]) {
+    min-height: 2.25rem;
+  }
+  h1, h2 {
+    font-family: "Fredoka", "Nunito", "Noto Sans Bengali", system-ui, sans-serif;
+    letter-spacing: 0.01em;
+  }
+}
+
+/* Mascot speech bubble (white pill with a little tail), like the reference */
+.bubble {
+  background: #ffffff;
+  color: #221a05;
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem 0.65rem;
+  box-shadow: 0 6px 18px rgba(34, 26, 5, 0.18);
+  text-align: center;
+}
+.bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 3px;
+}
+
+/* Gentle bobbing for the puppy mascot */
+@keyframes pup-bob {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-7px) rotate(1deg); }
+}
+.pup-bob { animation: pup-bob 3.2s ease-in-out infinite; }
+
+/* Floating focus timer: Pip comes alive like a little GIF — a happy
+   wiggle (bounce + rock + squash-and-stretch) while the timer runs, and
+   a faster, bigger happy-dance when the time is up. The dock itself
+   springs in when it docks at the top right, and Pip's speech bubble
+   pops each time his message changes. */
+@keyframes pip-wiggle {
+  0%, 100% { transform: translateY(0) rotate(-2.5deg) scale(1, 1); }
+  25% { transform: translateY(-4px) rotate(2deg) scale(0.98, 1.03); }
+  50% { transform: translateY(0) rotate(2.5deg) scale(1.02, 0.97); }
+  75% { transform: translateY(-3px) rotate(-1.5deg) scale(1, 1.02); }
+}
+.pip-wiggle { animation: pip-wiggle 1.6s ease-in-out infinite; }
+@keyframes pip-celebrate {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  20% { transform: translateY(-8px) rotate(-5deg) scale(1.05); }
+  40% { transform: translateY(0) rotate(4deg) scale(0.97); }
+  60% { transform: translateY(-7px) rotate(-4deg) scale(1.05); }
+  80% { transform: translateY(0) rotate(3deg) scale(0.98); }
+}
+.pip-celebrate { animation: pip-celebrate 0.9s ease-in-out infinite; }
+@keyframes dock-in {
+  0% { transform: translateY(-14px) scale(0.92); opacity: 0; }
+  60% { transform: translateY(2px) scale(1.02); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+.dock-in { animation: dock-in 0.35s ease-out; }
+@keyframes bubble-pop {
+  0% { transform: scale(0.7); opacity: 0; }
+  70% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.bubble-pop { animation: bubble-pop 0.3s ease-out; }
+
+.flashcard-scene { perspective: 1200px; }
+.flashcard-inner {
+  transform-style: preserve-3d;
+  transition: transform 0.45s ease;
+  position: relative;
+}
+.flashcard-inner.flipped { transform: rotateY(180deg); }
+.flashcard-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  position: absolute;
+  inset: 0;
+}
+.flashcard-back { transform: rotateY(180deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .flashcard-inner { transition: none; }
+  .pup-bob { animation: none; }
+  * { animation: none !important; }
+}
+
+/* Lesson-complete celebration: falling confetti pieces + a gentle pop-in
+   for the reward card. The reduced-motion block below disables both. */
+@keyframes confetti-fall {
+  0% { transform: translateY(-6vh) rotate(0deg); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(108vh) rotate(660deg); opacity: 0.5; }
+}
+.confetti-piece {
+  position: absolute;
+  top: -6vh;
+  border-radius: 2px;
+  pointer-events: none;
+  animation-name: confetti-fall;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes pop-in {
+  0% { transform: scale(0.86) translateY(14px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.pop-in { animation: pop-in 0.35s ease-out; }
+
+/* Themed dropdowns: the custom ThemedSelect panel scrolls with a thin
+   warm scrollbar, and any native <select>/<option> that ever appears
+   inherits the sheet/text/accent tokens instead of the browser's
+   grey/blue defaults (checked option = sunny yellow, like the theme). */
+.themed-select-panel { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.themed-select-panel::-webkit-scrollbar { width: 6px; }
+.themed-select-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+.themed-select-panel::-webkit-scrollbar-track { background: transparent; }
+select {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+  font-family: inherit;
+}
+option {
+  background-color: var(--sheet);
+  color: var(--text);
+  font-family: inherit;
+}
+option:checked {
+  background-color: var(--hero);
+  color: #221a05;
+}
+
+/* Themed Settings controls: speech-speed slider, goal number boxes and
+   checkboxes in the app's own FocusPup language — sunny-yellow fill and
+   thumb, warm pill shapes, and the soft warm-charcoal surfaces in dark
+   mode (all colours come from the tokens above, so both modes follow). */
+.themed-range {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--hero) 0%,
+    var(--hero) var(--fill, 50%),
+    var(--border) var(--fill, 50%),
+    var(--border) 100%
+  );
+  box-shadow: inset 0 2px 4px rgba(34, 26, 5, 0.18);
+  cursor: pointer;
+}
+.themed-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--hero);
+  border: 3px solid #221a05;
+  box-shadow: 0 3px 0 rgba(34, 26, 5, 0.3);
+  cursor: pointer;
+}
+.themed-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--hero);
+  border: 3px solid #221a05;
+  box-shadow: 0 3px 0 rgba(34, 26, 5, 0.3);
+  cursor: pointer;
+}
+.themed-range::-moz-range-track {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--border);
+  box-shadow: inset 0 2px 4px rgba(34, 26, 5, 0.18);
+}
+.themed-range::-moz-range-progress {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--hero);
+}
+.themed-range:active::-webkit-slider-thumb { box-shadow: none; }
+.themed-range:active::-moz-range-thumb { box-shadow: none; }
+
+.themed-number {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.themed-number::-webkit-outer-spin-button,
+.themed-number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.themed-check {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  border-radius: 9px;
+  border: 2px solid var(--border);
+  background-color: var(--surface2);
+  box-shadow: inset 0 2px 4px rgba(34, 26, 5, 0.12);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.themed-check:checked {
+  background-color: var(--hero);
+  border-color: #221a05;
+  box-shadow: 0 2px 0 rgba(34, 26, 5, 0.25);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M4.5 12.5l5 5L19.5 6.5' stroke='%23221a05' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 17px;
+}
+.themed-check:active { transform: scale(0.94); }
+
+/* Search fields: one clean pill in every state — normal, hover, focus
+   and active/clicked. A standalone search input carries the pill radius
+   itself and its focus ring is a box-shadow, which follows that radius
+   exactly with no offset gap and no square corners. A search pill
+   wrapper carries the radius and border; the input inside it stays
+   transparent and never draws its own outline or ring, so no inner
+   double border or unfilled corner gap can appear in either mode. */
+.search-input { border-radius: 999px; }
+.search-input:focus, .search-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.search-pill { border-radius: 999px; }
+.search-pill:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.search-pill input, .search-pill input:focus, .search-pill input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.hl-word {
+  background: var(--accent-soft);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0 4px;
+  font-weight: 800;
+}
+
+/* Universal button hover: EVERY <button> in the app — nav pills, lesson
+   tabs and arrows, vocabulary card actions, flashcard and game controls,
+   quiz and exam buttons, Oxford Save/Known/Difficult/Note and Short
+   story, Phrasal Verbs Listen buttons, Settings buttons and dropdown
+   triggers, Home actions and the Google sign-in button — shares the
+   navbar pills' hover feel: the same translateY(-10px) lift and the
+   same 0.4s timing, plus a deepened background and a soft shadow. The
+   deepening is an inset tint inside
+   --btn-hover-shadow, so each button keeps its own normal and selected
+   colours (the tint only darkens whatever is already there) and its
+   text and icons stay readable. Only real <button> elements are
+   targeted: the flashcard flip area is a role="button" div whose
+   transform is the 3D flip itself and must never be lifted. The effect
+   is limited to devices with a real hover-capable fine pointer, so on
+   touch screens nothing changes and the existing tap / active:scale
+   press effect works exactly as before. Disabled buttons never lift. */
+button {
+  transition:
+    transform 0.4s ease,
+    box-shadow 0.4s ease,
+    background-color 0.4s ease,
+    color 0.4s ease,
+    border-color 0.4s ease,
+    opacity 0.4s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):hover {
+    transform: translateY(-10px);
+    box-shadow: var(--btn-hover-shadow);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+  button:not(:disabled):hover { transform: none; }
+}
+
+/* Universal link hover: the exact effect requested for every <a> in the
+   app, in both light and dark mode — no underline, a 0.4s transition,
+   relative positioning, a translucent white background and an 8px
+   radius, lifting 10px on hover. The rgba(255,255,255,0.1) wash is
+   deliberately mode-independent (it reads as a faint highlight on the
+   sunny light surfaces and on the dark charcoal ones alike) and the
+   link's own text colour is untouched, so links stay readable in both
+   modes. display: inline-block is added only so the translateY lift
+   actually applies — transforms are ignored on plain inline boxes —
+   without it an inline text link could not lift at all. */
+a {
+  text-decoration: none;
+  transition: all 0.4s;
+  position: relative;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  display: inline-block;
+}
+
+a:hover {
+  transform: translateY(-10px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a { transition: none; }
+  a:hover { transform: none; }
+}
+
+/* Top navigation pills are <button>s, so the universal button hover
+   above already gives them the same 10px lift and 0.4s timing as every
+   other button. This rule only keeps their `all 0.4s` transition (the
+   pills also animate their selected background). The nav strip itself
+   carries extra top/bottom padding inside its scroll container (see
+   App.tsx) so a pill lifting 10px stays fully inside the bar — nothing
+   overflows or is clipped. NOTE: nav pills must not also carry a
+   Tailwind hover:-translate-y utility — Tailwind sets the separate CSS
+   `translate` property, which stacks on top of the `transform` lift
+   here and made the pills jump 20px instead of 10px. */
+.nav-pill {
+  transition: all 0.4s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .nav-pill:not(:disabled):hover {
+    transform: translateY(-10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-pill { transition: none; }
+  .nav-pill:not(:disabled):hover { transform: none; }
+}
