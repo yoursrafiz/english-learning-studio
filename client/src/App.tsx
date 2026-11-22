@@ -3471,6 +3471,17 @@ function StatusDropdown({ itemLabel, status, onPick }: {
   }, [open ]);
   const triggerLabel =
     status === "completed" ? "Complete" : status === "not_started" ? "Not Started" : status === "in_progress" ? "In Progress" : "Revision Needed";
+  // The trigger pill is coloured by the card's current status: black for
+  // Not Started, yellow for In Progress, green for Complete — fixed colours
+  // (not theme tokens) so the meaning reads the same in light and dark mode.
+  const triggerStyle =
+    status === "not_started"
+      ? { background: "#111111", color: "#ffffff", borderColor: "#111111" }
+      : status === "in_progress"
+        ? { background: "#facc15", color: "#1e1910", borderColor: "#e5c100" }
+        : status === "completed"
+          ? { background: "#16a34a", color: "#ffffff", borderColor: "#15803d" }
+          : undefined;
   const options = [
     { value: "not_started" as const, label: "Not Started" },
     { value: "completed" as const, label: "Complete" },
@@ -3483,6 +3494,7 @@ function StatusDropdown({ itemLabel, status, onPick }: {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
+        style={triggerStyle}
         className="inline-flex min-h-[1.75rem] items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface2)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--text)]"
       >
         <span>{triggerLabel}</span>
