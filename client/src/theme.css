@@ -275,6 +275,27 @@ img, svg, video, canvas { max-width: 100%; }
 }
 .pop-in { animation: pop-in 0.35s ease-out; }
 
+/* Completed item cards (all four study sections — Basic English lessons,
+   Oxford 3000, Phrasal Verbs, Idioms and Phrases): choosing "Complete"
+   from a card's status dropdown paints the whole card with a green
+   gradient. Light mode uses a bright leaf gradient under the normal dark
+   text; dark mode (explicit or system) uses a deep green gradient under
+   the normal warm off-white text, so titles stay readable in both. */
+.lesson-card-done {
+  background-image: linear-gradient(135deg, #d9f99d 0%, #86efac 48%, #22c55e 100%);
+  border-color: #16a34a;
+}
+:root[data-theme="dark"] .lesson-card-done {
+  background-image: linear-gradient(135deg, #14532d 0%, #15803d 55%, #22c55e 100%);
+  border-color: #4ade80;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lesson-card-done {
+    background-image: linear-gradient(135deg, #14532d 0%, #15803d 55%, #22c55e 100%);
+    border-color: #4ade80;
+  }
+}
+
 /* Themed dropdowns: the custom ThemedSelect panel scrolls with a thin
    warm scrollbar, and any native <select>/<option> that ever appears
    inherits the sheet/text/accent tokens instead of the browser's
