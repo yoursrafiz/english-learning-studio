@@ -3387,6 +3387,279 @@ function Home({ state, settings, go, focus }: { state: State; settings: Settings
   );
 }
 
+// ---------- per-item card status (Oxford 3000 / Phrasal Verbs / Idioms) ----------
+// The compact card system used across all four study sections: every
+// item card defaults to "Not Started", clicking the card itself marks
+// it "In Progress", and its dropdown offers exactly two choices —
+// "Not Started" and "Complete" — with Complete painting the whole card
+// a green gradient. Basic English lessons save this through the lesson
+// progress table (see LessonCard below); the other three sections keep
+// their own progress tracking (per-word states, story "read" marks) and
+// store only this manual card status on the device, keyed per item
+// (e.g. "ox-module:...", "pv-story:...:3", "idiom-story:7").
+type ItemStatus = "not_started" | "in_progress" | "completed";
+const ITEM_STATUS_KEY = "els-item-status-v1";
+let itemStatusCache: Record<string, string> | null = null;
+const itemStatusListeners = new Set<() => void>();
+
+function loadItemStatuses(): Record<string, string> {
+  if (itemStatusCache) return itemStatusCache;
+  try {
+    const raw = window.localStorage.getItem(ITEM_STATUS_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    itemStatusCache =
+      parsed != null && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, string>)
+        : {};
+  } catch {
+    itemStatusCache = {};
+  }
+  return itemStatusCache;
+}
+
+function writeItemStatus(key: string, status: ItemStatus) {
+  const next = { ...loadItemStatuses() };
+  if (status === "not_started") delete next[key];
+  else next[key] = status;
+  itemStatusCache = next;
+  try {
+    window.localStorage.setItem(ITEM_STATUS_KEY, JSON.stringify(next));
+  } catch {
+    // storage unavailable — the mark simply will not persist
+  }
+  itemStatusListeners.forEach((l) => l());
+}
+
+function useItemStatus(key: string): [ItemStatus, (s: ItemStatus) => void] {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setTick((t) => t + 1);
+    itemStatusListeners.add(bump);
+    return () => { itemStatusListeners.delete(bump); };
+  }, []);
+  const raw = loadItemStatuses()[key];
+  const status: ItemStatus = raw === "in_progress" || raw === "completed" ? raw : "not_started";
+  return [status, (s: ItemStatus) => writeItemStatus(key, s)];
+}
+
+// A section's own progress (stories read, words known) also speaks:
+// any real progress reads as In Progress and full progress as
+// Completed, unless the learner explicitly marked the card Complete.
+function effectiveItemStatus(manual: ItemStatus, pct: number): ItemStatus {
+  if (manual === "completed") return "completed";
+  if (pct >= 100) return "completed";
+  if (manual === "in_progress" || pct > 0) return "in_progress";
+  return "not_started";
+}
+
+// The two-option status dropdown shared by every item card in the four
+// sections. The trigger pill shows the card's current status; the menu
+// contains exactly "Not Started" and "Complete". Clicks here never fall
+// through to the card's own open-on-click handler.
+function StatusDropdown({ itemLabel, status, onPick }: {
+  itemLabel: string;
+  status: string;
+  onPick: (choice: "not_started" | "completed") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent | TouchEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open ]);
+  const triggerLabel =
+    status === "completed" ? "Complete" : status === "not_started" ? "Not Started" : status === "in_progress" ? "In Progress" : "Revision Needed";
+  const options = [
+    { value: "not_started" as const, label: "Not Started" },
+    { value: "completed" as const, label: "Complete" },
+  ];
+  return (
+    <div ref={wrapRef} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        aria-label={`${itemLabel} status dropdown`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="inline-flex min-h-[1.75rem] items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface2)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--text)]"
+      >
+        <span>{triggerLabel}</span>
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden focusable="false" className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={`Set ${itemLabel} status`}
+          className="absolute left-0 top-full z-50 mt-1 min-w-[9.5rem] rounded-2xl border-2 border-[var(--border)] bg-[var(--sheet)] p-1.5 shadow-[0_14px_34px_rgba(34,26,5,0.25)]"
+        >
+          {options.map((o) => {
+            const isSel = o.value === status;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="menuitem"
+                aria-label={o.label}
+                aria-current={isSel ? "true" : undefined}
+                onClick={() => { setOpen(false); onPick(o.value); }}
+                className={`flex w-full items-center justify-between gap-2 rounded-full px-3 py-1.5 text-left text-xs transition active:scale-[0.99] ${isSel ? "bg-[var(--accent)] font-extrabold text-[var(--on-accent)]" : "font-semibold text-[var(--text)] hover:bg-[var(--accent-soft)]"}`}
+              >
+                <span>{o.label}</span>
+                {isSel && <Fi n="check" className="text-[10px]" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The slim footer row under a non-lesson item card's content: current
+// status on the left, the two-option dropdown on the right.
+function CardStatusFooter({ itemLabel, status, onPick }: {
+  itemLabel: string;
+  status: string;
+  onPick: (choice: "not_started" | "completed") => void;
+}) {
+  const [statusEn, statusBn] = (STATUS_LABEL[status] ?? "").split(" · ");
+  return (
+    <div className="mt-2 flex items-center justify-between gap-2 border-t border-[var(--border)] pt-2">
+      <span className="min-w-0 truncate text-[11px] font-extrabold text-[var(--text)]">
+        {statusEn}
+        <span className="bn font-semibold text-[var(--dim)]"> · {statusBn}</span>
+      </span>
+      <StatusDropdown itemLabel={itemLabel} status={status} onPick={onPick} />
+    </div>
+  );
+}
+
+// ---------- compact lesson card (Lessons list only) ----------
+// A deliberately small version of the lesson progress control for the
+// Lessons grid: a one-line status + percentage, a thin progress bar and
+// a single dropdown menu with exactly two choices — "Not Started" and
+// "Complete". There is no slider and no four-pill row here (the lesson
+// detail page keeps its full "Mark my progress" control, unchanged).
+// Clicking the card itself opens the lesson and, when the lesson was
+// Not Started (or marked Revision needed), first saves it as
+// In Progress. Choosing "Complete" saves 100% / completed and turns the
+// whole card a green gradient; choosing "Not Started" saves 0% /
+// not_started and the card returns to its normal surface look.
+function LessonCard({ lesson, completion, status, listView, go }: {
+  lesson: Lesson;
+  completion: number;
+  status: string;
+  listView: boolean;
+  go: (v: View) => void;
+}) {
+  const qc = useQueryClient();
+  const savedStatus: LessonStatus = (MARK_STATUSES as readonly string[]).includes(status)
+    ? (status as LessonStatus)
+    : "not_started";
+  const [pct, setPct] = useState(completion);
+  const [st, setSt] = useState<LessonStatus>(savedStatus);
+  const [saveError, setSaveError] = useState(false);
+
+  // Follow the saved values when they change (after a save round-trip or
+  // a quiz result recorded on the lesson page).
+  useEffect(() => {
+    setPct(completion);
+    setSt(savedStatus);
+  }, [completion, savedStatus]);
+
+  const mark = useMutation({
+    mutationFn: async (v: { completion: number; status: LessonStatus }) =>
+      await api.markLessonProgress({ lessonNumber: lesson.n, completion: v.completion, status: v.status }),
+    onSuccess: () => {
+      setSaveError(false);
+      qc.invalidateQueries({ queryKey: ["state"] });
+    },
+    onError: () => setSaveError(true),
+  });
+
+  const applyStatus = (nextStatus: LessonStatus, nextPct: number) => {
+    setSt(nextStatus);
+    setPct(nextPct);
+    mark.mutate({ completion: nextPct, status: nextStatus });
+  };
+
+  const pickFromMenu = (choice: "not_started" | "completed") => {
+    if (choice === "completed") applyStatus("completed", 100);
+    else applyStatus("not_started", 0);
+  };
+
+  const openLesson = () => {
+    // Opening a lesson that has not been started (or needs revision)
+    // marks it In Progress; a Completed lesson stays Completed.
+    if (st === "not_started" || st === "revision_needed") {
+      const nextPct = pct > 0 && pct < 100 ? pct : 10;
+      applyStatus("in_progress", nextPct);
+    }
+    go({ name: "lesson", n: lesson.n });
+  };
+
+  const done = st === "completed";
+  const fillColor = st === "revision_needed" ? "var(--rose)" : done ? "var(--amber)" : "var(--hero)";
+  const [statusEn, statusBn] = (STATUS_LABEL[st] ?? "").split(" · ");
+
+  return (
+    <div
+      onClick={openLesson}
+      className={`flex cursor-pointer flex-col rounded-[1.25rem] border-2 p-2 shadow-[0_4px_14px_rgba(34,26,5,0.06)] ${done ? "lesson-card-done" : "border-[var(--border)] bg-[var(--surface)]"}`}
+    >
+      <div className="border-b border-[var(--border)] pb-1.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[11px] font-extrabold text-[var(--text)]">
+            {statusEn}
+            <span className="bn font-semibold text-[var(--dim)]"> · {statusBn}</span>
+          </span>
+          <span className="font-display shrink-0 text-sm font-semibold text-[var(--text)]" aria-hidden>{pct}%</span>
+        </div>
+        <div
+          className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface2)]"
+          role="img"
+          aria-label={`Lesson ${lesson.n} reading progress: ${pct} percent, ${statusEn}`}
+        >
+          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: fillColor }} />
+        </div>
+        <div className="mt-1.5">
+          <StatusDropdown itemLabel={`Lesson ${lesson.n}`} status={st} onPick={pickFromMenu} />
+        </div>
+        {mark.isPending && <p className="mt-1 text-[10px] font-semibold text-[var(--dim)]">Saving… · সংরক্ষণ হচ্ছে</p>}
+        {saveError && (
+          <p className="bn mt-1 text-[11px] font-semibold text-[var(--rose)]">সংরক্ষণ করা যায়নি — আবার চেষ্টা করুন। Could not save — please try again.</p>
+        )}
+      </div>
+      <button
+        type="button"
+        aria-label={`Lesson ${lesson.n}: ${lesson.en} — ${lesson.bn}`}
+        onClick={(e) => { e.stopPropagation(); openLesson(); }}
+        className={`mt-1.5 w-full flex-1 text-left ${listView ? "flex items-center gap-3" : "block"}`}
+      >
+        <Fi n={lesson.icon} className="text-xl" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[11px] font-bold text-[var(--accent)]">LESSON {lesson.n}</span>
+          <span className="block truncate font-semibold leading-snug text-[var(--text)]">{lesson.en}</span>
+          <span className="bn block truncate text-[13px] leading-snug text-[var(--dim)]">{lesson.bn}</span>
+          <span className="block text-[11px] text-[var(--dim)]">{lesson.entries.length} entries · ~{lesson.minutes} min</span>
+        </span>
+        <span className="shrink-0 text-xs font-semibold text-[var(--accent)]">{pct > 0 ? "Continue" : "Start"} →</span>
+      </button>
+    </div>
+  );
+}
+
 // ---------- lessons list ----------
 function LessonsList({ state, go }: { state: State; go: (v: View) => void }) {
   const [q, setQ] = useState("");
@@ -3449,32 +3722,18 @@ function LessonsList({ state, go }: { state: State; go: (v: View) => void }) {
       <p className="mt-2 text-sm text-[var(--dim)]">
         {filtered.length} lessons · showing {pageItems.length === 0 ? 0 : safePage * PAGE_SIZE + 1}–{safePage * PAGE_SIZE + pageItems.length}
       </p>
-      <div className={listView ? "mt-2 grid gap-2" : "mt-2 grid grid-cols-1 gap-2.5 min-[340px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"}>
+      <div className={listView ? "mt-2 grid gap-2" : "mt-2 grid grid-cols-1 gap-2 min-[340px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"}>
         {pageItems.map((l) => {
           const p = state.progress.find((x) => x.lessonNumber === l.n);
-          const completion = p?.completion ?? 0;
           return (
-            <div
+            <LessonCard
               key={l.n}
-              className="flex flex-col rounded-[1.75rem] border-2 border-[var(--border)] bg-[var(--surface)] shadow-[0_6px_20px_rgba(34,26,5,0.07)] p-3"
-            >
-              <LessonProgressMark compact lessonNumber={l.n} completion={completion} status={p?.status ?? "not_started"} />
-              <button
-                type="button"
-                aria-label={`Lesson ${l.n}: ${l.en} — ${l.bn}`}
-                onClick={() => go({ name: "lesson", n: l.n })}
-                className={`mt-2.5 w-full flex-1 text-left ${listView ? "flex items-center gap-3" : "block"}`}
-              >
-                <Fi n={l.icon} className="text-2xl" />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-bold text-[var(--accent)]">LESSON {l.n}</span>
-                  <span className="block truncate font-semibold text-[var(--text)]">{l.en}</span>
-                  <span className="bn block truncate text-sm text-[var(--dim)]">{l.bn}</span>
-                  <span className="mt-0.5 block text-xs text-[var(--dim)]">{l.entries.length} entries · ~{l.minutes} min</span>
-                </span>
-                <span className="shrink-0 text-sm font-semibold text-[var(--accent)]">{completion > 0 ? "Continue" : "Start"} →</span>
-              </button>
-            </div>
+              lesson={l}
+              completion={p?.completion ?? 0}
+              status={p?.status ?? "not_started"}
+              listView={listView}
+              go={go}
+            />
           );
         })}
       </div>
@@ -4721,6 +4980,47 @@ function IdiomStoryDetail({ group, settings, bestPct, onBack }: { group: IdiomSt
   );
 }
 
+// Compact Idioms story card: same card system as the other sections —
+// compact padding, the two-option status dropdown, click-to-open marks
+// it In Progress, and Complete paints the whole card green.
+function IdiomStoryCard({ group, best, onOpen }: { group: IdiomStoryGroup; best?: number; onOpen: () => void }) {
+  const [status, setStatus] = useItemStatus(`idiom-story:${group.num}`);
+  const done = status === "completed";
+  const open = () => {
+    if (status === "not_started") setStatus("in_progress");
+    onOpen();
+  };
+  const pick = (choice: "not_started" | "completed") => {
+    setStatus(choice === "completed" ? "completed" : "not_started");
+  };
+  return (
+    <div
+      onClick={open}
+      className={`flex cursor-pointer flex-col rounded-[1.25rem] border-2 p-3 shadow-[0_4px_14px_rgba(34,26,5,0.06)] ${done ? "lesson-card-done" : "border-[var(--border)] bg-[var(--surface)]"}`}
+    >
+      <button
+        type="button"
+        aria-label={`Open story ${group.num}: ${group.titleEn} (${group.titleBn})`}
+        onClick={(e) => { e.stopPropagation(); open(); }}
+        className="w-full flex-1 text-left"
+      >
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">STORY {String(group.num).padStart(2, "0")}</span>
+          {best != null && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--text)]">
+              <Fi n="badge-check" /> Best {best}%
+            </span>
+          )}
+        </span>
+        <span className="font-display bn mt-2 block text-xl font-semibold text-[var(--text)]">{group.titleBn}</span>
+        <span className="font-display block text-sm font-semibold text-[var(--dim)]">{group.titleEn}</span>
+        <span className="mt-2 block text-sm leading-relaxed text-[var(--dim)]">{group.idioms.map((i) => i.idiom).join(" · ")}</span>
+      </button>
+      <CardStatusFooter itemLabel={`Story ${group.num}`} status={status} onPick={pick} />
+    </div>
+  );
+}
+
 function IdiomsPage({ settings, attempts }: { settings: Settings; attempts: State["attempts"] }) {
   const [mode, setMode] = useState<"stories" | "list">("stories");
   const [openNum, setOpenNum] = useState<number | null>(null);
@@ -4791,31 +5091,10 @@ function IdiomsPage({ settings, attempts }: { settings: Settings; attempts: Stat
           />
         </div>
       ) : mode === "stories" ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {IDIOM_STORY_GROUPS.map((g) => {
-            const best = bestByStory.get(g.num);
-            return (
-              <button
-                key={g.num}
-                type="button"
-                aria-label={`Open story ${g.num}: ${g.titleEn} (${g.titleBn})`}
-                onClick={() => setOpenNum(g.num)}
-                className="rounded-3xl border-2 border-[var(--border)] bg-[var(--surface)] p-4 text-left shadow-[0_4px_14px_rgba(34,26,5,0.06)] transition active:scale-[0.99]"
-              >
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">STORY {String(g.num).padStart(2, "0")}</span>
-                  {best != null && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--text)]">
-                      <Fi n="badge-check" /> Best {best}%
-                    </span>
-                  )}
-                </span>
-                <span className="font-display bn mt-2 block text-xl font-semibold text-[var(--text)]">{g.titleBn}</span>
-                <span className="font-display block text-sm font-semibold text-[var(--dim)]">{g.titleEn}</span>
-                <span className="mt-2 block text-sm leading-relaxed text-[var(--dim)]">{g.idioms.map((i) => i.idiom).join(" · ")}</span>
-              </button>
-            );
-          })}
+        <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+          {IDIOM_STORY_GROUPS.map((g) => (
+            <IdiomStoryCard key={g.num} group={g} best={bestByStory.get(g.num)} onOpen={() => setOpenNum(g.num)} />
+          ))}
         </div>
       ) : (
         <>
@@ -4964,7 +5243,7 @@ function PdfPvCard({ entry, tr, settings }: { entry: PdfPhrasalVerb; tr?: PvTran
       {tr ? (
         <p className="bn mt-1 text-base text-[var(--dim)]">{tr.exampleBn}</p>
       ) : (
-        <p className="bn mt-1 text-sm text-[var(--dim)]">বাংলা অনুবাদ এখনো নেই</p>
+        <p className="bn mt-1 text-sm text-[var(--dim)]">বাংলা অনুবাদ তৈরি হচ্ছে…</p>
       )}
     </article>
   );
@@ -5074,7 +5353,7 @@ function PvStoryDetail({ group, moduleNum, storyKey, isDone, onToggleDone, setti
               {group.verbs.map((v, i) => (
                 <tr key={i} className="border-b border-[var(--border)] align-top last:border-b-0">
                   <td className="font-display py-2.5 pr-3 font-semibold text-[var(--text)]">{v.verb}</td>
-                  <td className="bn py-2.5 pr-3 font-semibold text-[var(--dim)]">{v.meaningBn || "বাংলা অনুবাদ এখনো নেই"}</td>
+                  <td className="bn py-2.5 pr-3 font-semibold text-[var(--dim)]">{v.meaningBn || "বাংলা অনুবাদ তৈরি হচ্ছে…"}</td>
                   <td className="py-2.5 text-[var(--text)]">{v.meaningEn}</td>
                 </tr>
               ))}
@@ -5096,7 +5375,7 @@ function PvStoryDetail({ group, moduleNum, storyKey, isDone, onToggleDone, setti
               <p className="mt-2 text-lg font-semibold leading-relaxed text-[var(--text)]">
                 <UnderlinedStory text={v.example[0]} />
               </p>
-              <p className="bn mt-0.5 text-base text-[var(--dim)]">{v.example[1] || "বাংলা অনুবাদ এখনো নেই"}</p>
+              <p className="bn mt-0.5 text-base text-[var(--dim)]">{v.example[1] || "বাংলা অনুবাদ তৈরি হচ্ছে…"}</p>
               <PvSpeakButton id={`pv-story-${storyKey}-ex-${i}`} text={stripIdiomMarks(v.example[0])} settings={settings} variant="example" />
             </div>
           ))}
@@ -5148,6 +5427,106 @@ function savePvDone(done: ReadonlySet<string>) {
 
 const PV_LIST_ORDER: PvModule["listId"][] = ["daily", "common", "more", "business", "az"];
 
+// Compact Phrasal Verbs module card: same card system as the other
+// sections. The module's own read progress still drives the bar; the
+// dropdown's "Complete" marks every story in the module as read and
+// "Not Started" clears those read marks, and clicking the card marks
+// it In Progress and opens it.
+function PvModuleCard({ m, done, onOpen, onSetAllRead }: {
+  m: PvModule;
+  done: number;
+  onOpen: () => void;
+  onSetAllRead: (read: boolean) => void;
+}) {
+  const [manual, setManual] = useItemStatus(`pv-module:${m.id}`);
+  const pct = m.storyCount > 0 ? Math.round((done / m.storyCount) * 100) : 0;
+  const status = effectiveItemStatus(manual, pct);
+  const isDone = status === "completed";
+  const open = () => {
+    if (status === "not_started") setManual("in_progress");
+    onOpen();
+  };
+  const pick = (choice: "not_started" | "completed") => {
+    if (choice === "completed") onSetAllRead(true);
+    else { onSetAllRead(false); setManual("not_started"); }
+  };
+  return (
+    <div
+      onClick={open}
+      className={`flex cursor-pointer flex-col rounded-[1.25rem] border-2 p-3 shadow-[0_4px_14px_rgba(34,26,5,0.06)] ${isDone ? "lesson-card-done" : "border-[var(--border)] bg-[var(--surface)]"}`}
+    >
+      <button
+        type="button"
+        aria-label={`Open module ${m.num}: ${m.titleEn} (${m.titleBn}) — ${m.storyCount} stories, ${m.verbCount} phrasal verbs, ${done} read`}
+        onClick={(e) => { e.stopPropagation(); open(); }}
+        className="w-full flex-1 text-left"
+      >
+        <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">MODULE {String(m.num).padStart(2, "0")}</span>
+        <span className="font-display mt-2 block text-lg font-semibold leading-snug text-[var(--text)]">{m.titleEn}</span>
+        <span className="bn block text-base font-semibold text-[var(--dim)]">{m.titleBn}</span>
+        <span className="mt-1.5 block text-sm font-semibold text-[var(--text)]">{m.storyCount} stories · {m.verbCount} phrasal verbs</span>
+        <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-[var(--surface2)]">
+          <span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="mt-1 block text-xs font-bold text-[var(--dim)]">
+          {done > 0 ? <>{done} of {m.storyCount} read · <span className="bn">পড়া হয়েছে</span></> : <>Not started · <span className="bn">এখনো শুরু হয়নি</span></>}
+        </span>
+      </button>
+      <CardStatusFooter itemLabel={`Module ${m.num}`} status={status} onPick={pick} />
+    </div>
+  );
+}
+
+// Compact Phrasal Verbs story card (inside one module): a story already
+// marked read counts as Complete; the dropdown's "Complete" marks it
+// read and "Not Started" unmarks it, and clicking the card marks it
+// In Progress and opens it.
+function PvStoryCard({ mod, group, isRead, onOpen, onSetRead }: {
+  mod: PvModule;
+  group: PvStoryGroup;
+  isRead: boolean;
+  onOpen: () => void;
+  onSetRead: (read: boolean) => void;
+}) {
+  const [manual, setManual] = useItemStatus(`pv-story:${mod.id}:${group.num}`);
+  const status: ItemStatus = isRead ? "completed" : manual;
+  const isDone = status === "completed";
+  const open = () => {
+    if (status === "not_started") setManual("in_progress");
+    onOpen();
+  };
+  const pick = (choice: "not_started" | "completed") => {
+    if (choice === "completed") onSetRead(true);
+    else { onSetRead(false); setManual("not_started"); }
+  };
+  return (
+    <div
+      onClick={open}
+      className={`flex cursor-pointer flex-col rounded-[1.25rem] border-2 p-3 shadow-[0_4px_14px_rgba(34,26,5,0.06)] ${isDone ? "lesson-card-done" : "border-[var(--border)] bg-[var(--surface)]"}`}
+    >
+      <button
+        type="button"
+        aria-label={`Open story ${group.num} of module ${mod.num}: ${group.titleEn} (${group.titleBn})${isRead ? " — already read" : ""}`}
+        onClick={(e) => { e.stopPropagation(); open(); }}
+        className="w-full flex-1 text-left"
+      >
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">STORY {String(group.num).padStart(2, "0")}</span>
+          {isRead && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface2)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--text)]">
+              <Fi n="check" /> Read
+            </span>
+          )}
+        </span>
+        <span className="font-display bn mt-2 block text-xl font-semibold text-[var(--text)]">{group.titleBn}</span>
+        <span className="font-display block text-sm font-semibold text-[var(--dim)]">{group.titleEn}</span>
+        <span className="mt-2 block text-sm leading-relaxed text-[var(--dim)]">{group.verbs.map((v) => v.verb).join(" · ")}</span>
+      </button>
+      <CardStatusFooter itemLabel={`Story ${group.num} of module ${mod.num}`} status={status} onPick={pick} />
+    </div>
+  );
+}
+
 function PhrasalVerbsPage({ settings }: { settings: Settings }) {
   const showBn = settings.showBengali;
   const [pvMode, setPvMode] = useState<"stories" | "all">("stories");
@@ -5171,6 +5550,29 @@ function PhrasalVerbsPage({ settings }: { settings: Settings }) {
     let c = 0;
     for (let n = 1; n <= m.storyCount; n++) if (pvDone.has(`${m.id}:${n}`)) c++;
     return c;
+  };
+  // Set (not toggle) one story's read mark, or every story's in a
+  // module — used by the cards' status dropdown (Complete / Not Started).
+  const setPvStoryRead = (key: string, read: boolean) => {
+    setPvDone((prev) => {
+      if (prev.has(key) === read) return prev;
+      const next = new Set(prev);
+      if (read) next.add(key);
+      else next.delete(key);
+      savePvDone(next);
+      return next;
+    });
+  };
+  const setPvModuleRead = (m: PvModule, read: boolean) => {
+    setPvDone((prev) => {
+      const next = new Set(prev);
+      for (let n = 1; n <= m.storyCount; n++) {
+        if (read) next.add(`${m.id}:${n}`);
+        else next.delete(`${m.id}:${n}`);
+      }
+      savePvDone(next);
+      return next;
+    });
   };
   const [query, setQuery] = useState("");
   const [commonOpen, setCommonOpen] = useState(false);
@@ -5350,31 +5752,17 @@ function PhrasalVerbsPage({ settings }: { settings: Settings }) {
                 </p>
               </div>
             </section>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {moduleStories.map((g) => {
-                const done = pvDone.has(`${selectedModule.id}:${g.num}`);
-                return (
-                  <button
-                    key={g.num}
-                    type="button"
-                    aria-label={`Open story ${g.num} of module ${selectedModule.num}: ${g.titleEn} (${g.titleBn})${done ? " — already read" : ""}`}
-                    onClick={() => setOpenStoryNum(g.num)}
-                    className="rounded-3xl border-2 border-[var(--border)] bg-[var(--surface)] p-4 text-left shadow-[0_4px_14px_rgba(34,26,5,0.06)] transition active:scale-[0.99]"
-                  >
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">STORY {String(g.num).padStart(2, "0")}</span>
-                      {done && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface2)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--text)]">
-                          <Fi n="check" /> Read
-                        </span>
-                      )}
-                    </span>
-                    <span className="font-display bn mt-2 block text-xl font-semibold text-[var(--text)]">{g.titleBn}</span>
-                    <span className="font-display block text-sm font-semibold text-[var(--dim)]">{g.titleEn}</span>
-                    <span className="mt-2 block text-sm leading-relaxed text-[var(--dim)]">{g.verbs.map((v) => v.verb).join(" · ")}</span>
-                  </button>
-                );
-              })}
+            <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+              {moduleStories.map((g) => (
+                <PvStoryCard
+                  key={g.num}
+                  mod={selectedModule}
+                  group={g}
+                  isRead={pvDone.has(`${selectedModule.id}:${g.num}`)}
+                  onOpen={() => setOpenStoryNum(g.num)}
+                  onSetRead={(read) => setPvStoryRead(`${selectedModule.id}:${g.num}`, read)}
+                />
+              ))}
             </div>
           </>
         ) : (
@@ -5388,31 +5776,16 @@ function PhrasalVerbsPage({ settings }: { settings: Settings }) {
                 <SectionTitle>
                   {PV_LIST_TITLES[listId].en} · <span className="bn">{PV_LIST_TITLES[listId].bn}</span>
                 </SectionTitle>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {PV_MODULES.filter((m) => m.listId === listId).map((m) => {
-                    const done = pvDoneCount(m);
-                    const pct = m.storyCount > 0 ? Math.round((done / m.storyCount) * 100) : 0;
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        aria-label={`Open module ${m.num}: ${m.titleEn} (${m.titleBn}) — ${m.storyCount} stories, ${m.verbCount} phrasal verbs, ${done} read`}
-                        onClick={() => { setPvModuleId(m.id); setOpenStoryNum(null); }}
-                        className="rounded-3xl border-2 border-[var(--border)] bg-[var(--surface)] p-4 text-left shadow-[0_4px_14px_rgba(34,26,5,0.06)] transition active:scale-[0.99]"
-                      >
-                        <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">MODULE {String(m.num).padStart(2, "0")}</span>
-                        <span className="font-display mt-2 block text-lg font-semibold leading-snug text-[var(--text)]">{m.titleEn}</span>
-                        <span className="bn block text-base font-semibold text-[var(--dim)]">{m.titleBn}</span>
-                        <span className="mt-1.5 block text-sm font-semibold text-[var(--text)]">{m.storyCount} stories · {m.verbCount} phrasal verbs</span>
-                        <span className="mt-2.5 block h-2.5 overflow-hidden rounded-full bg-[var(--surface2)]">
-                          <span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
-                        </span>
-                        <span className="mt-1 block text-xs font-bold text-[var(--dim)]">
-                          {done > 0 ? <>{done} of {m.storyCount} read · <span className="bn">পড়া হয়েছে</span></> : <>Not started · <span className="bn">এখনো শুরু হয়নি</span></>}
-                        </span>
-                      </button>
-                    );
-                  })}
+                <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                  {PV_MODULES.filter((m) => m.listId === listId).map((m) => (
+                    <PvModuleCard
+                      key={m.id}
+                      m={m}
+                      done={pvDoneCount(m)}
+                      onOpen={() => { setPvModuleId(m.id); setOpenStoryNum(null); }}
+                      onSetAllRead={(read) => setPvModuleRead(m, read)}
+                    />
+                  ))}
                 </div>
               </section>
             ))}
@@ -6178,6 +6551,198 @@ function saveOxDone(done: ReadonlySet<number>) {
   }
 }
 
+// Compact Oxford module card: same card system as the other sections.
+// The module's own read progress still drives the bar; the dropdown's
+// "Complete" marks every story in the module as read and "Not Started"
+// clears those read marks, and clicking the card marks it In Progress
+// and opens it.
+function OxModuleCard({ m, done, onOpen, onSetAllRead }: {
+  m: OxModule;
+  done: number;
+  onOpen: () => void;
+  onSetAllRead: (read: boolean) => void;
+}) {
+  const [manual, setManual] = useItemStatus(`ox-module:${m.id}`);
+  const pct = m.storyCount > 0 ? Math.round((done / m.storyCount) * 100) : 0;
+  const status = effectiveItemStatus(manual, pct);
+  const isDone = status === "completed";
+  const open = () => {
+    if (status === "not_started") setManual("in_progress");
+    onOpen();
+  };
+  const pick = (choice: "not_started" | "completed") => {
+    if (choice === "completed") onSetAllRead(true);
+    else { onSetAllRead(false); setManual("not_started"); }
+  };
+  return (
+    <div
+      onClick={open}
+      className={`flex cursor-pointer flex-col rounded-[1.25rem] border-2 p-3 shadow-[0_4px_14px_rgba(34,26,5,0.06)] ${isDone ? "lesson-card-done" : "border-[var(--border)] bg-[var(--surface)]"}`}
+    >
+      <button
+        type="button"
+        aria-label={`Open Oxford module ${m.num}: ${m.titleEn} (${m.titleBn}) — ${m.storyCount} stories, ${m.wordCount} words, ${done} read`}
+        onClick={(e) => { e.stopPropagation(); open(); }}
+        className="w-full flex-1 text-left"
+      >
+        <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">MODULE {String(m.num).padStart(2, "0")}</span>
+        <span className="font-display mt-2 block text-lg font-semibold leading-snug text-[var(--text)]">{m.titleEn}</span>
+        <span className="bn block text-base font-semibold text-[var(--dim)]">{m.titleBn}</span>
+        <span className="mt-1.5 block text-sm font-semibold text-[var(--text)]">{m.storyCount} stories · {m.wordCount} words</span>
+        <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-[var(--surface2)]">
+          <span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="mt-1 block text-xs font-bold text-[var(--dim)]">
+          {done > 0 ? <>{done} of {m.storyCount} read · <span className="bn">পড়া হয়েছে</span></> : <>Not started · <span className="bn">এখনো শুরু হয়নি</span></>}
+        </span>
+      </button>
+      <CardStatusFooter itemLabel={`Oxford module ${m.num}`} status={status} onPick={pick} />
+    </div>
+  );
+}
+
+// Compact Oxford story card (inside one module): a story already
+// marked read counts as Complete; the dropdown's "Complete" marks it
+// read and "Not Started" unmarks it, and clicking the card marks it
+// In Progress and opens it.
+function OxStoryCard({ mod, story, isRead, onOpen, onSetRead }: {
+  mod: OxModule;
+  story: OxStory;
+  isRead: boolean;
+  onOpen: () => void;
+  onSetRead: (read: boolean) => void;
+}) {
+  const [manual, setManual] = useItemStatus(`ox-story:${story.num}`);
+  const status: ItemStatus = isRead ? "completed" : manual;
+  const isDone = status === "completed";
+  const open = () => {
+    if (status === "not_started") setManual("in_progress");
+    onOpen();
+  };
+  const pick = (choice: "not_started" | "completed") => {
+    if (choice === "completed") onSetRead(true);
+    else { onSetRead(false); setManual("not_started"); }
+  };
+  return (
+    <div
+      onClick={open}
+      className={`flex cursor-pointer flex-col rounded-[1.25rem] border-2 p-3 shadow-[0_4px_14px_rgba(34,26,5,0.06)] ${isDone ? "lesson-card-done" : "border-[var(--border)] bg-[var(--surface)]"}`}
+    >
+      <button
+        type="button"
+        aria-label={`Open story ${story.num} of Oxford module ${mod.num}: ${story.titleEn} (${story.titleBn})${isRead ? " — already read" : ""}`}
+        onClick={(e) => { e.stopPropagation(); open(); }}
+        className="w-full flex-1 text-left"
+      >
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="bn rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">গল্প {oxBnPad(story.num)}</span>
+          <span className="rounded-full bg-[var(--surface2)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--text)]">STORY {String(story.num).padStart(2, "0")}</span>
+          {isRead && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface2)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--text)]">
+              <Fi n="check" /> Read
+            </span>
+          )}
+        </span>
+        <span className="font-display bn mt-2 block text-xl font-semibold text-[var(--text)]">{story.titleBn}</span>
+        <span className="font-display block text-sm font-semibold text-[var(--dim)]">{story.titleEn}</span>
+        <span className="mt-2 block text-sm leading-relaxed text-[var(--dim)]">{story.words.map((sw) => sw.word.word).join(" · ")}</span>
+      </button>
+      <CardStatusFooter itemLabel={`Oxford story ${story.num}`} status={status} onPick={pick} />
+    </div>
+  );
+}
+
+// Compact Oxford level card (All Oxford Words view): the level's own
+// known-words progress still drives the bar; clicking the card marks
+// it In Progress and opens the level, and the dropdown's "Complete"
+// paints the whole card green.
+function OxLevelCard({ level, wordCount, known, inEveryday, onOpen }: {
+  level: string;
+  wordCount: number;
+  known: number;
+  inEveryday: number;
+  onOpen: () => void;
+}) {
+  const [manual, setManual] = useItemStatus(`ox-level:${level}`);
+  const pct = wordCount > 0 ? Math.round((known / wordCount) * 100) : 0;
+  const status = effectiveItemStatus(manual, pct);
+  const isDone = status === "completed";
+  const open = () => {
+    if (status === "not_started") setManual("in_progress");
+    onOpen();
+  };
+  const pick = (choice: "not_started" | "completed") => {
+    setManual(choice === "completed" ? "completed" : "not_started");
+  };
+  return (
+    <div
+      onClick={open}
+      className={`flex cursor-pointer flex-col rounded-[1.25rem] border-2 p-3 shadow-[0_4px_14px_rgba(34,26,5,0.06)] ${isDone ? "lesson-card-done" : "border-[var(--border)] bg-[var(--surface)]"}`}
+    >
+      <button
+        type="button"
+        aria-label={`Open Oxford level ${level} with ${wordCount} words`}
+        onClick={(e) => { e.stopPropagation(); open(); }}
+        className="w-full flex-1 text-left"
+      >
+        <span className="font-display block text-2xl font-semibold text-[var(--text)]">{level}</span>
+        <span className="mt-0.5 block text-sm text-[var(--dim)]">{wordCount} words from the PDF · {inEveryday} of them are in the Everyday track</span>
+        <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-[var(--surface2)]" role="progressbar" aria-label={`Level ${level} progress`} aria-valuenow={known} aria-valuemin={0} aria-valuemax={wordCount}>
+          <span className="block h-full rounded-full bg-[var(--hero)]" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="mt-1 block text-xs font-semibold text-[var(--dim)]">{known} known · {pct}%</span>
+      </button>
+      <CardStatusFooter itemLabel={`Oxford level ${level}`} status={status} onPick={pick} />
+    </div>
+  );
+}
+
+// The Everyday Life starter banner in the same card system: clicking
+// marks it In Progress and opens the track; "Complete" in its dropdown
+// paints the banner green (its text then uses the normal text colour
+// so it stays readable on the gradient in both modes).
+function OxEverydayCard({ total, known, onOpen }: { total: number; known: number; onOpen: () => void }) {
+  const [manual, setManual] = useItemStatus("ox-everyday");
+  const pct = total > 0 ? Math.round((known / total) * 100) : 0;
+  const status = effectiveItemStatus(manual, pct);
+  const isDone = status === "completed";
+  const open = () => {
+    if (status === "not_started") setManual("in_progress");
+    onOpen();
+  };
+  const pick = (choice: "not_started" | "completed") => {
+    setManual(choice === "completed" ? "completed" : "not_started");
+  };
+  const [statusEn, statusBn] = (STATUS_LABEL[status] ?? "").split(" · ");
+  return (
+    <div
+      onClick={open}
+      className={`block w-full cursor-pointer rounded-[1.5rem] border-2 p-4 text-left shadow-[0_8px_24px_rgba(34,26,5,0.16)] ${isDone ? "lesson-card-done text-[var(--text)]" : "border-[var(--border)] bg-[var(--accent)] text-[var(--on-accent)]"}`}
+    >
+      <button
+        type="button"
+        aria-label="Open Everyday Life and Spoken English, the starter track"
+        onClick={(e) => { e.stopPropagation(); open(); }}
+        className="w-full text-left"
+      >
+        <span className="font-display block text-2xl font-semibold">Everyday Life &amp; Spoken English</span>
+        <span className="bn mt-1 block text-sm opacity-90">প্রতিদিনের জীবন ও কথ্য ইংরেজি — অভিবাদন, পরিবার, বাড়ি, খাবার, সময়, ভ্রমণ, কেনাকাটা, স্বাস্থ্য, কাজ ও দৈনন্দিন কাজের শব্দ আগে।</span>
+        <span className="mt-2 block text-sm font-bold">{total} words · {known} known</span>
+        <span className="mt-2 block h-2 overflow-hidden rounded-full bg-black/20" role="progressbar" aria-label="Everyday track progress" aria-valuenow={known} aria-valuemin={0} aria-valuemax={total}>
+          <span className="block h-full rounded-full bg-[var(--hero)]" style={{ width: `${pct}%` }} />
+        </span>
+      </button>
+      <div className={`mt-2 flex items-center justify-between gap-2 border-t pt-2 ${isDone ? "border-[var(--border)]" : "border-white/25"}`}>
+        <span className="min-w-0 truncate text-[11px] font-extrabold">
+          {statusEn}
+          <span className="bn font-semibold opacity-80"> · {statusBn}</span>
+        </span>
+        <StatusDropdown itemLabel="Everyday Life and Spoken English" status={status} onPick={pick} />
+      </div>
+    </div>
+  );
+}
+
 // The Oxford story browser: modules in learning order (Everyday Life,
 // then A1, A2, B1, B2), one module's stories in order, then one story.
 function OxfordStoriesHub({ settings }: { settings: Settings }) {
@@ -6198,6 +6763,29 @@ function OxfordStoriesHub({ settings }: { settings: Settings }) {
     });
   };
   const oxDoneCount = (m: OxModule) => m.stories.filter((s) => oxDone.has(s.num)).length;
+  // Set (not toggle) one story's read mark, or every story's in a
+  // module — used by the cards' status dropdown (Complete / Not Started).
+  const setOxStoryRead = (num: number, read: boolean) => {
+    setOxDone((prev) => {
+      if (prev.has(num) === read) return prev;
+      const next = new Set(prev);
+      if (read) next.add(num);
+      else next.delete(num);
+      saveOxDone(next);
+      return next;
+    });
+  };
+  const setOxModuleRead = (m: OxModule, read: boolean) => {
+    setOxDone((prev) => {
+      const next = new Set(prev);
+      for (const s of m.stories) {
+        if (read) next.add(s.num);
+        else next.delete(s.num);
+      }
+      saveOxDone(next);
+      return next;
+    });
+  };
   const selectedModule = oxModuleId != null ? OX_MODULES.find((m) => m.id === oxModuleId) : undefined;
   const openStoryObj = selectedModule != null && openStoryNum != null ? selectedModule.stories.find((s) => s.num === openStoryNum) : undefined;
 
@@ -6240,32 +6828,17 @@ function OxfordStoriesHub({ settings }: { settings: Settings }) {
               </p>
             </div>
           </section>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {selectedModule.stories.map((s) => {
-              const done = oxDone.has(s.num);
-              return (
-                <button
-                  key={s.num}
-                  type="button"
-                  aria-label={`Open story ${s.num} of Oxford module ${selectedModule.num}: ${s.titleEn} (${s.titleBn})${done ? " — already read" : ""}`}
-                  onClick={() => setOpenStoryNum(s.num)}
-                  className="rounded-3xl border-2 border-[var(--border)] bg-[var(--surface)] p-4 text-left shadow-[0_4px_14px_rgba(34,26,5,0.06)] transition active:scale-[0.99]"
-                >
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="bn rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">গল্প {oxBnPad(s.num)}</span>
-                    <span className="rounded-full bg-[var(--surface2)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--text)]">STORY {String(s.num).padStart(2, "0")}</span>
-                    {done && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface2)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--text)]">
-                        <Fi n="check" /> Read
-                      </span>
-                    )}
-                  </span>
-                  <span className="font-display bn mt-2 block text-xl font-semibold text-[var(--text)]">{s.titleBn}</span>
-                  <span className="font-display block text-sm font-semibold text-[var(--dim)]">{s.titleEn}</span>
-                  <span className="mt-2 block text-sm leading-relaxed text-[var(--dim)]">{s.words.map((sw) => sw.word.word).join(" · ")}</span>
-                </button>
-              );
-            })}
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {selectedModule.stories.map((s) => (
+              <OxStoryCard
+                key={s.num}
+                mod={selectedModule}
+                story={s}
+                isRead={oxDone.has(s.num)}
+                onOpen={() => setOpenStoryNum(s.num)}
+                onSetRead={(read) => setOxStoryRead(s.num, read)}
+              />
+            ))}
           </div>
         </>
       ) : (
@@ -6279,31 +6852,16 @@ function OxfordStoriesHub({ settings }: { settings: Settings }) {
               <SectionTitle>
                 {OX_SECTION_TITLES[sectionId]?.en} · <span className="bn">{OX_SECTION_TITLES[sectionId]?.bn}</span>
               </SectionTitle>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {OX_MODULES.filter((m) => m.sectionId === sectionId).map((m) => {
-                  const done = oxDoneCount(m);
-                  const pct = m.storyCount > 0 ? Math.round((done / m.storyCount) * 100) : 0;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      aria-label={`Open Oxford module ${m.num}: ${m.titleEn} (${m.titleBn}) — ${m.storyCount} stories, ${m.wordCount} words, ${done} read`}
-                      onClick={() => { setOxModuleId(m.id); setOpenStoryNum(null); }}
-                      className="rounded-3xl border-2 border-[var(--border)] bg-[var(--surface)] p-4 text-left shadow-[0_4px_14px_rgba(34,26,5,0.06)] transition active:scale-[0.99]"
-                    >
-                      <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--on-accent)]">MODULE {String(m.num).padStart(2, "0")}</span>
-                      <span className="font-display mt-2 block text-lg font-semibold leading-snug text-[var(--text)]">{m.titleEn}</span>
-                      <span className="bn block text-base font-semibold text-[var(--dim)]">{m.titleBn}</span>
-                      <span className="mt-1.5 block text-sm font-semibold text-[var(--text)]">{m.storyCount} stories · {m.wordCount} words</span>
-                      <span className="mt-2.5 block h-2.5 overflow-hidden rounded-full bg-[var(--surface2)]">
-                        <span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
-                      </span>
-                      <span className="mt-1 block text-xs font-bold text-[var(--dim)]">
-                        {done > 0 ? <>{done} of {m.storyCount} read · <span className="bn">পড়া হয়েছে</span></> : <>Not started · <span className="bn">এখনো শুরু হয়নি</span></>}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                {OX_MODULES.filter((m) => m.sectionId === sectionId).map((m) => (
+                  <OxModuleCard
+                    key={m.id}
+                    m={m}
+                    done={oxDoneCount(m)}
+                    onOpen={() => { setOxModuleId(m.id); setOpenStoryNum(null); }}
+                    onSetAllRead={(read) => setOxModuleRead(m, read)}
+                  />
+                ))}
               </div>
             </section>
           ))}
@@ -6382,19 +6940,7 @@ function OxfordHub({ state, settings, go }: { state: State; settings: Settings; 
       )}
 
       <SectionTitle>Start here · <span className="bn">এখান থেকে শুরু করুন</span></SectionTitle>
-      <button
-        type="button"
-        aria-label="Open Everyday Life and Spoken English, the starter track"
-        onClick={() => go({ name: "oxfordLevel", level: "everyday" })}
-        className="block w-full rounded-[2rem] border-2 border-[var(--border)] bg-[var(--accent)] p-5 text-left text-[var(--on-accent)] shadow-[0_8px_24px_rgba(34,26,5,0.16)] transition active:scale-[0.99]"
-      >
-        <p className="font-display text-2xl font-semibold">Everyday Life &amp; Spoken English</p>
-        <p className="bn mt-1 text-sm opacity-90">প্রতিদিনের জীবন ও কথ্য ইংরেজি — অভিবাদন, পরিবার, বাড়ি, খাবার, সময়, ভ্রমণ, কেনাকাটা, স্বাস্থ্য, কাজ ও দৈনন্দিন কাজের শব্দ আগে।</p>
-        <p className="mt-2 text-sm font-bold">{everyday.length} words · {everydayKnown} known</p>
-        <div className="mt-2 h-3 overflow-hidden rounded-full bg-black/20" role="progressbar" aria-label="Everyday track progress" aria-valuenow={everydayKnown} aria-valuemin={0} aria-valuemax={everyday.length}>
-          <div className="h-full rounded-full bg-[var(--hero)]" style={{ width: `${everyday.length ? Math.round((everydayKnown / everyday.length) * 100) : 0}%` }} />
-        </div>
-      </button>
+      <OxEverydayCard total={everyday.length} known={everydayKnown} onOpen={() => go({ name: "oxfordLevel", level: "everyday" })} />
       <div className="mt-3 flex flex-wrap gap-1.5">
         {EVERYDAY_CATS.map((c) => (
           <button
@@ -6410,26 +6956,20 @@ function OxfordHub({ state, settings, go }: { state: State; settings: Settings; 
       </div>
 
       <SectionTitle>By level · <span className="bn">স্তর অনুযায়ী</span></SectionTitle>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-2.5 sm:grid-cols-2">
         {OX_LEVELS.map((l) => {
           const words = oxWordsOfLevel(l);
           const known = words.filter((w) => oxKnown(oxStateOf(state, w))).length;
           const inEveryday = words.filter((w) => w.everydayCat).length;
           return (
-            <button
+            <OxLevelCard
               key={l}
-              type="button"
-              aria-label={`Open Oxford level ${l} with ${words.length} words`}
-              onClick={() => go({ name: "oxfordLevel", level: l })}
-              className="rounded-[1.75rem] border-2 border-[var(--border)] bg-[var(--surface)] p-4 text-left shadow-sm transition active:scale-[0.99]"
-            >
-              <p className="font-display text-2xl font-semibold text-[var(--text)]">{l}</p>
-              <p className="mt-0.5 text-sm text-[var(--dim)]">{words.length} words from the PDF · {inEveryday} of them are in the Everyday track</p>
-              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[var(--surface2)]" role="progressbar" aria-label={`Level ${l} progress`} aria-valuenow={known} aria-valuemin={0} aria-valuemax={words.length}>
-                <div className="h-full rounded-full bg-[var(--hero)]" style={{ width: `${words.length ? Math.round((known / words.length) * 100) : 0}%` }} />
-              </div>
-              <p className="mt-1 text-xs font-semibold text-[var(--dim)]">{known} known · {Math.round((known / Math.max(1, words.length)) * 100)}%</p>
-            </button>
+              level={l}
+              wordCount={words.length}
+              known={known}
+              inEveryday={inEveryday}
+              onOpen={() => go({ name: "oxfordLevel", level: l })}
+            />
           );
         })}
       </div>
