@@ -16,18 +16,6 @@ type VocabEntry,
 } from "./curriculum";
 import pupMascot from "./assets/pup-mascot.webp";
 import {
-GOOGLE_CONFIGURED,
-clearStoredUser,
-clearTestingSession,
-googleDisableAutoSelect,
-loadStoredUser,
-loadTestingSession,
-mountGoogleButton,
-storeTestingSession,
-storeUser,
-type GoogleUser,
-} from "./google-auth";
-import {
 EVERYDAY_CATS,
 OX_LEVELS,
 OX_WORDS,
@@ -3024,7 +3012,7 @@ function FloatingTimer({ timer, onPause, onResume, onStop }: { timer: FocusTimer
 }
 
 // ---------- home / dashboard ----------
-function Home({ state, settings, go, focus, user }: { state: State; settings: Settings; go: (v: View) => void; focus: ReturnType<typeof useFocusTimer>; user: GoogleUser | null }) {
+function Home({ state, settings, go, focus }: { state: State; settings: Settings; go: (v: View) => void; focus: ReturnType<typeof useFocusTimer> }) {
   const completed = state.progress.filter((p) => p.status === "completed").length;
   const started = state.progress.filter((p) => p.status !== "not_started").length;
   const mastered = state.words.filter((w) => w.mastery === "mastered" || w.known).length;
@@ -3078,7 +3066,7 @@ function Home({ state, settings, go, focus, user }: { state: State; settings: Se
           mastered) on the right of the same row, vertically aligned.
           The row wraps on narrow phones so nothing scrolls sideways. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-1">
-        <p className="bn text-base font-semibold text-[var(--text)]">{user ? `আসসালামু আলাইকুম, ${user.firstName}` : "আসসালামু আলাইকুম"}</p>
+        <p className="bn text-base font-semibold text-[var(--text)]">আসসালামু আলাইকুম, Sifat</p>
         <div className="ms-auto flex items-center gap-2">
           <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold text-[#221a05] shadow-[0_3px_10px_rgba(34,26,5,0.15)]" aria-label={`${streak} day study streak`}><Fi n="flame" solid /> {streak}</span>
           <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold text-[#221a05] shadow-[0_3px_10px_rgba(34,26,5,0.15)]" aria-label={`${mastered} words mastered`}><Fi n="star" solid /> {mastered}</span>
@@ -4037,7 +4025,7 @@ function Analytics({ state }: { state: State }) {
 }
 
 // ---------- settings ----------
-function SettingsView({ settings, user, onSignOut }: { settings: Settings; user: GoogleUser | null; onSignOut: () => void }) {
+function SettingsView({ settings }: { settings: Settings }) {
   const qc = useQueryClient();
   const [form, setForm] = useState(settings);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -4068,32 +4056,6 @@ function SettingsView({ settings, user, onSignOut }: { settings: Settings; user:
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-[var(--text)]">Settings · সেটিংস</h1>
         <ThemeSwitcher settings={settings} compact />
-      </div>
-      <div className="mt-4 rounded-[1.75rem] border-2 border-[var(--border)] bg-[var(--surface)] shadow-[0_6px_20px_rgba(34,26,5,0.07)] p-4">
-        <h2 className="font-bold text-[var(--text)]">Account · <span className="bn">অ্যাকাউন্ট</span></h2>
-        {user ? (
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <UserAvatar user={user} className="h-12 w-12 text-lg" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-bold text-[var(--text)]">{user.name}</p>
-              {user.email && <p className="truncate text-sm text-[var(--dim)]">{user.email}</p>}
-              <p className="bn mt-0.5 text-xs font-medium text-[var(--dim)]">Google অ্যাকাউন্ট দিয়ে সাইন ইন করা আছে — নামটি আপনার Google অ্যাকাউন্ট থেকেই এসেছে।</p>
-            </div>
-            <Btn variant="danger" ariaLabel="Sign out of your Google account" onClick={onSignOut}>Sign out</Btn>
-          </div>
-        ) : (
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="font-bold text-[var(--text)]">Testing Project — testing mode</p>
-              <p className="mt-0.5 text-sm text-[var(--dim)]">No Google account is signed in. You entered in testing mode because real Google sign-in is not configured yet.</p>
-              <p className="bn mt-0.5 text-xs font-medium text-[var(--dim)]">কোনো Google অ্যাকাউন্ট দিয়ে সাইন ইন করা হয়নি — আসল Google সাইন-ইন এখনো সেটআপ হয়নি বলে আপনি টেস্টিং মোডে ঢুকেছেন।</p>
-            </div>
-            <Btn variant="danger" ariaLabel="Sign out and return to the sign-in screen" onClick={onSignOut}>Sign out</Btn>
-          </div>
-        )}
-        <p className="mt-3 text-xs leading-relaxed text-[var(--dim)]">
-          Google sign-in status: {GOOGLE_CONFIGURED ? "Configured — real Google sign-in is on." : "Not configured yet — no Client ID has been added."}
-        </p>
       </div>
       <div className="mt-4 grid gap-4 rounded-[1.75rem] border-2 border-[var(--border)] bg-[var(--surface)] shadow-[0_6px_20px_rgba(34,26,5,0.07)] p-4">
         <label className="block">
@@ -6597,129 +6559,6 @@ function OxfordLevel({ level, initialCat, state, settings, go }: { level: string
   );
 }
 
-// ---------- Google sign-in gate ----------
-// The app opens on this welcome screen. Sign-in is done by Google
-// Identity Services with the ONE Client ID from google-config.ts.
-// Until a real Client ID is configured there, this screen honestly says
-// sign-in is not set up yet: the button is disabled, no Google account
-// is invented, and no typed-in name can pass as a Google sign-in.
-export function GoogleGLogo({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="20" height="20" viewBox="0 0 48 48" aria-hidden focusable="false">
-      <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34.3 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z" />
-      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34.3 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
-      <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z" />
-    </svg>
-  );
-}
-
-export function UserAvatar({ user, className }: { user: GoogleUser; className?: string }) {
-  const [imgFailed, setImgFailed] = useState(false);
-  if (user.picture && !imgFailed) {
-    return (
-      <img
-        src={user.picture}
-        alt=""
-        referrerPolicy="no-referrer"
-        onError={() => setImgFailed(true)}
-        className={`rounded-full border-[3px] border-white object-cover shadow-[0_4px_12px_rgba(34,26,5,0.2)] ${className ?? "h-10 w-10"}`}
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden
-      className={`font-display flex shrink-0 items-center justify-center rounded-full border-[3px] border-white bg-[var(--accent)] font-bold text-[var(--on-accent)] shadow-[0_4px_12px_rgba(34,26,5,0.2)] ${className ?? "h-10 w-10 text-base"}`}
-    >
-      {(user.firstName || user.name || "?").charAt(0).toUpperCase()}
-    </span>
-  );
-}
-
-function SignInGate({ onSignedIn, onTestingEnter }: { onSignedIn: (user: GoogleUser) => void; onTestingEnter: () => void }) {
-  const buttonRef = useRef<HTMLDivElement>(null);
-  const [gisFailed, setGisFailed] = useState(false);
-  const [signInError, setSignInError] = useState(false);
-
-  useEffect(() => {
-    if (!GOOGLE_CONFIGURED || !buttonRef.current) return;
-    let cancelled = false;
-    void mountGoogleButton(
-      buttonRef.current,
-      (user) => { if (!cancelled) onSignedIn(user); },
-      () => { if (!cancelled) setSignInError(true); },
-    ).then((ok) => { if (!cancelled && !ok) setGisFailed(true); });
-    return () => { cancelled = true; };
-  }, [onSignedIn]);
-
-  return (
-    <div className="flex min-h-dvh items-center justify-center bg-[var(--bg)] px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="relative mx-auto w-fit">
-          <div className="bubble absolute -top-3 right-0 z-10 sm:-right-8" role="status">
-            <p className="font-display text-base leading-tight font-semibold">Welcome!</p>
-            <p className="bn text-xs font-medium text-[#7a6c3f]">স্বাগতম!</p>
-          </div>
-          <div className="pup-bob w-40 overflow-hidden rounded-[2.25rem] border-4 border-white/70 shadow-[0_16px_32px_rgba(34,26,5,0.28)] sm:w-48">
-            <img src={pupMascot} alt="Pip, a cute brown puppy, sitting and smiling" className="block h-auto w-full" width={800} height={800} />
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-[2rem] bg-[var(--sheet)] px-6 pt-6 pb-7 text-center shadow-[0_18px_40px_rgba(34,26,5,0.16)]">
-          <h1 className="font-display text-3xl leading-tight font-semibold text-[var(--text)]">English Learning Studio</h1>
-          <p className="bn mt-1 text-sm font-semibold text-[var(--dim)]">বাংলা থেকে ইংরেজি শিখুন</p>
-          {GOOGLE_CONFIGURED ? (
-            <>
-              <p className="bn mt-4 text-base font-medium text-[var(--text)]">শুরু করতে আপনার Google অ্যাকাউন্ট দিয়ে সাইন ইন করুন।</p>
-              <p className="mt-1 text-sm text-[var(--dim)]">Sign in with your Google account to start learning. Your name in the app will be the name on your Google account.</p>
-            </>
-          ) : (
-            <>
-              <p className="bn mt-4 text-base font-medium text-[var(--text)]">টেস্টিং মোড চলছে — নিচের Google অপশনে চাপ দিলেই সরাসরি অ্যাপে ঢুকতে পারবেন।</p>
-              <p className="mt-1 text-sm text-[var(--dim)]">Testing mode is on — tap the Google option below to go straight into the app.</p>
-            </>
-          )}
-
-          {GOOGLE_CONFIGURED ? (
-            <div className="mt-6">
-              <div ref={buttonRef} className="flex min-h-[44px] items-center justify-center" aria-label="Sign in with Google" />
-              {gisFailed && (
-                <p className="mt-3 text-sm font-semibold text-[var(--rose)]">
-                  Google sign-in could not load — check your internet connection and try again.
-                  <span className="bn block">Google সাইন-ইন লোড করা যায়নি — ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।</span>
-                </p>
-              )}
-              {signInError && (
-                <p className="mt-3 text-sm font-semibold text-[var(--rose)]">
-                  That sign-in did not complete — please try again.
-                  <span className="bn block">সাইন-ইন সম্পূর্ণ হয়নি — আবার চেষ্টা করুন।</span>
-                </p>
-              )}
-              <p className="bn mt-4 text-xs font-medium text-[var(--dim)]">সাইন ইন থাকবে — প্রতিবার আবার সাইন ইন করতে হবে না।</p>
-            </div>
-          ) : (
-            <div className="mt-6">
-              <h2 className="text-sm font-extrabold tracking-wide text-[var(--dim)]">Show Authenticator</h2>
-              <p className="font-display mt-1.5 inline-flex items-center rounded-full bg-[var(--accent-soft)] px-4 py-1.5 text-base font-semibold text-[var(--text)]">Testing Project</p>
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={onTestingEnter}
-                  aria-label="Sign in with Google — testing mode, enter the app"
-                  className="inline-flex items-center justify-center gap-3 rounded-full border-2 border-[var(--border)] bg-[var(--surface)] px-6 py-3 text-base font-bold text-[var(--text)] shadow-[0_4px_14px_rgba(34,26,5,0.14)] transition hover:border-[var(--text)] active:scale-[0.98]"
-                >
-                  <GoogleGLogo /> Sign in with Google
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ---------- app shell ----------
 const NAV: [View["name"], string, string][] = [
   ["home", "home", "Home"],
@@ -6766,32 +6605,6 @@ export function App() {
     const width = Math.min(window.innerWidth * 0.85, 320);
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
     setLessonsMenu({ top: rect.bottom + 8, left });
-  };
-  // Google session: restored from localStorage so the learner stays
-  // signed in across visits; null means the sign-in gate shows first.
-  const [user, setUser] = useState<GoogleUser | null>(() => loadStoredUser());
-  // Testing-mode entry: true when the learner came in through the gate's
-  // testing entry (no Google account — see google-auth.ts). Kept apart
-  // from `user` on purpose: testing mode never invents a Google name,
-  // email or photo.
-  const [testing, setTesting] = useState<boolean>(() => loadTestingSession());
-  const handleSignedIn = useCallback((u: GoogleUser) => {
-    storeUser(u);
-    setUser(u);
-    setView({ name: "home" });
-  }, []);
-  const handleTestingEnter = useCallback(() => {
-    storeTestingSession();
-    setTesting(true);
-    setView({ name: "home" });
-  }, []);
-  const handleSignOut = () => {
-    clearStoredUser();
-    clearTestingSession();
-    googleDisableAutoSelect();
-    setUser(null);
-    setTesting(false);
-    setView({ name: "home" });
   };
   const state = useQuery({ queryKey: ["state"], queryFn: () => api.getState({}) });
   const themePref = state.data?.settings.theme ?? "system";
@@ -6872,10 +6685,6 @@ export function App() {
       .then(() => qc.invalidateQueries({ queryKey: ["state"] }))
       .catch(() => {});
   });
-  // Sign-in gate: nothing of the app shows until the learner enters —
-  // either a real Google sign-in (or a still-valid saved session), or,
-  // while Google sign-in is not configured yet, the gate's testing entry.
-  if (!user && !testing) return <SignInGate onSignedIn={handleSignedIn} onTestingEnter={handleTestingEnter} />;
   if (state.isPending)
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[var(--bg)]">
@@ -6928,32 +6737,6 @@ export function App() {
                 <button type="button" aria-label={`${dueCount} words due for review — open review`} onClick={() => go({ name: "review" })} className="rounded-full bg-white px-3 py-1.5 text-sm font-extrabold whitespace-nowrap text-[#221a05] shadow-[0_3px_10px_rgba(34,26,5,0.15)]">
                   <Fi n="refresh" /> {dueCount} due
                 </button>
-              )}
-              {user ? (
-                <div className="flex items-center gap-2 rounded-full bg-white py-1 pr-1.5 pl-1 shadow-[0_3px_10px_rgba(34,26,5,0.15)]" aria-label={`Signed in as ${user.name}`}>
-                  <UserAvatar user={user} className="h-8 w-8 text-sm" />
-                  <span className="hidden max-w-[10rem] truncate text-sm font-extrabold text-[#221a05] min-[420px]:block">{user.firstName}</span>
-                  <button
-                    type="button"
-                    aria-label={`Sign out of Google account (${user.name})`}
-                    onClick={handleSignOut}
-                    className="rounded-full bg-[#221a05] px-3 py-1.5 text-xs font-extrabold whitespace-nowrap text-white transition active:scale-95"
-                  >
-                    Sign out
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 rounded-full bg-white py-1 pr-1.5 pl-3 shadow-[0_3px_10px_rgba(34,26,5,0.15)]" aria-label="Testing mode — no Google account signed in">
-                  <span className="hidden text-sm font-extrabold whitespace-nowrap text-[#221a05] min-[420px]:block">Testing Project</span>
-                  <button
-                    type="button"
-                    aria-label="Sign out and return to the sign-in screen"
-                    onClick={handleSignOut}
-                    className="rounded-full bg-[#221a05] px-3 py-1.5 text-xs font-extrabold whitespace-nowrap text-white transition active:scale-95"
-                  >
-                    Sign out
-                  </button>
-                </div>
               )}
               <span className="md:hidden"><ThemeSwitcher settings={settings} compact /></span>
             </div>
@@ -7014,7 +6797,7 @@ export function App() {
       )}
       <div className="mx-auto max-w-7xl">
         <main ref={mainRef} tabIndex={-1} className="min-w-0 scroll-mt-40 px-4 pt-4 pb-10 outline-none md:px-6 md:pt-5">
-          {view.name === "home" && <Home state={data} settings={settings} go={go} focus={focus} user={user} />}
+          {view.name === "home" && <Home state={data} settings={settings} go={go} focus={focus} />}
           {view.name === "lessons" && <LessonsList state={data} go={go} />}
           {view.name === "exams" && <ExamsHome state={data} go={go} />}
           {view.name === "checkpoint" && <CheckpointExam key={view.end} end={view.end} state={data} settings={settings} go={go} />}
@@ -7028,7 +6811,7 @@ export function App() {
           {view.name === "mywords" && <MyWords state={data} settings={settings} go={go} />}
           {view.name === "review" && <Review state={data} settings={settings} go={go} />}
           {view.name === "analytics" && <Analytics state={data} />}
-          {view.name === "settings" && <SettingsView settings={settings} user={user} onSignOut={handleSignOut} />}
+          {view.name === "settings" && <SettingsView settings={settings} />}
           <footer key={view.name} className="mt-10 border-t-2 border-dashed border-[var(--border)] pt-4 pb-2 text-center text-xs leading-relaxed text-[var(--dim)]">
             <CopyrightLink />
           </footer>
