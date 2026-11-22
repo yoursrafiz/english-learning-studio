@@ -12,7 +12,7 @@ type Lesson,
 type Rel,
 type VocabEntry,
 } from "./curriculum";
-import pupMascot from "./assets/pup-mascot.webp";
+import { PUP_MASCOT as pupMascot } from "./assets/pup-mascot";
 import {
 GOOGLE_CONFIGURED,
 clearStoredUser,

@@ -84,6 +84,10 @@ and no photo.
   service, so entries without a translation honestly say
   "বাংলা অনুবাদ এখনো নেই" (no Bengali translation yet) instead of
   inventing one.
+- Pip the puppy mascot is embedded as a data URI in
+  `src/assets/pup-mascot.ts` (the original `.webp` file is binary and
+  cannot be pushed with the text-only GitHub tool), so the mascot
+  still shows exactly as before.
 - **Listen buttons** use your browser's built-in voices (Web Speech
   API), and the speaking exam uses your browser's speech recognition.
   Both depend on your browser and device — Chrome on Windows works

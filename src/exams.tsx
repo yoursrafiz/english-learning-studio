@@ -24,7 +24,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiResponse } from "./api";
 import { Btn, Fi, SpeakBtn, optionsFor, shuffle, speak, type MCQ } from "./App";
 import { getLesson, type VocabEntry } from "./curriculum";
-import pupMascot from "./assets/pup-mascot.webp";
+import { PUP_MASCOT as pupMascot } from "./assets/pup-mascot";
 
 type State = ApiResponse<typeof api, "getState">;
 type Settings = State["settings"];
